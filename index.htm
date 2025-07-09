@@ -1,0 +1,196 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frank Trading Signal Pro</title>
+    <link rel="stylesheet" href="style.css">
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+</head>
+
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="logo">
+                <h1 id="logo-text">Frank Trade Signal</h1>
+            </div>
+            <div class="settings">
+            <!-- Кастомный селектор с флагами -->
+            <div class="input-group language-dropdown">
+                <label id="language-label">Language</label>
+                <div class="lang-select" id="custom-language-selector">
+                    <button class="lang-selected" onclick="toggleLangDropdown()">
+                        <img id="current-flag" src="./gb.png" alt="RU" class="flag-icon">
+                        <span id="current-lang-text">English</span>
+                        
+                    </button>
+                    <!-- <div class="lang-dropdown-content" id="lang-options"> -->
+                        <!-- <div class="lang-item" data-lang="ru" data-flag="https://flagcdn.com/w20/ru.png">Русский</div> -->
+                        <!-- <div class="lang-item" data-lang="en" data-flag="https://flagcdn.com/w20/gb.png">English</div> -->
+                        <!-- <div class="lang-item" data-lang="uz" data-flag="https://flagcdn.com/w20/uz.png">O'zbek</div> -->
+                    <!-- </div> -->
+                </div>
+            </div>
+
+            <!-- Скрытый реальный селект для совместимости -->
+                <select id="language" onchange="changeLanguage()" style="display: none;">
+                    <option value="ru">Русский</option>
+                    <option value="en">English</option>
+                    <option value="uz">O'zbek</option>
+                </select>
+                <div class="input-group">
+                    <label id="currency-label">Trading Pair</label>
+                    <select id="currency-pair">
+                        <option>GBP/USD OTC</option>
+                        <option>USD/CAD OTC</option>
+                        <option>EUR/GBP OTC</option>
+                        <option>EUR/JPY OTC</option>
+                        <option>GBP/JPY OTC</option>
+                        <option>AUD/NZD OTC</option>
+                        <option>USD/RUB OTC</option>
+                        <option>CAD/JPY OTC</option>
+                        <option>CHF/JPY OTC</option>
+                        <option>EUR/CHF OTC</option>
+                        <option>AUD/CAD OTC</option>
+                        <option>AED/CNY OTC</option>
+                        <option>EUR/USD</option>
+                        <option>BTC/USD</option>
+                        <option>XAU/USD</option>
+                        <option>ETH/USD</option>
+                        <option>USD/RUB</option>
+                        <option>USD/JPY</option>
+                        <option>GBP/USD</option>
+                        <option>USD/CHF</option>
+                        <option>AUD/USD</option>
+                        <option>USD/CAD</option>
+                        <option>NZD/USD</option>
+                        <option>EUR/GBP</option>
+                        <option>EUR/JPY</option>
+                        <option>GBP/JPY</option>
+                        <option>AUD/JPY</option>
+                        <option>CHF/JPY</option>
+                        <option>EUR/AUD</option>
+                        <option>EUR/CAD</option>
+                        <option>GBP/AUD</option>
+                        <option>GBP/CAD</option>
+                        <option>AUD/CAD</option>
+                        <option>AUD/CHF</option>
+                        <option>NZD/JPY</option>
+                        <option>NZD/CHF</option>                        
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label id="timeframe-label">Time</label>
+                    <select id="timeframe">
+                        <option>5 seconds</option>
+                        <option>15 seconds</option>
+                        <option>1 minute</option>
+                        <option>3 minutes</option>
+                        <option>5 minutes</option>
+                        <option>10 minutes</option>
+                    </select>
+                </div>
+                <div class="button-group">
+                    <button id="generate-btn" class="button button-green">Get signal</button>
+                </div>
+            </div>
+        </div>
+        <div class="main-content">
+            <div class="signal-block">
+                <div class="signal-header">
+                    <h2 id="signal-title">Signal</h2>
+                    <span id="signal-time"></span>
+                </div>
+                <div id="signal-result" class="signal-result">
+                    <div class="signal-placeholder">
+                        Click "Get signal"
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+     <script>
+(function(){
+  const btn = document.getElementById('generate-btn');
+  const resultContainer = document.getElementById('signal-result');
+  const timeContainer = document.getElementById('signal-time');
+  const pairSelect = document.getElementById('currency-pair');
+  const tfSelect = document.getElementById('timeframe');
+
+  btn.addEventListener('click', () => {
+    const tfText = tfSelect.value;
+      let secs;
+      const num = parseInt(tfText, 10) || 5;
+      if (/minute/.test(tfText)) {
+        secs = num * 60;
+      } else {
+        secs = num;
+      }
+      const analysisMs = 4000;    // фиксированное время анализа: 4 секунды
+      const cooldownSec = secs;
+
+    // Показываем индикатор анализа
+    resultContainer.innerHTML = `
+      <div class="signal-analyzing">
+        Analyzing
+        <span class="dots"><span>.</span><span>.</span><span>.</span></span>
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+      </div>
+    `;
+    const fillEl = resultContainer.querySelector('.progress-fill');
+    fillEl.style.width = '0';
+    fillEl.style.transition = `width ${analysisMs}ms linear`;
+    setTimeout(() => fillEl.style.width = '100%', 50);
+    btn.disabled = true;
+    timeContainer.textContent = '';
+
+    // После анализа показываем результат и запускаем таймер повтора
+    setTimeout(() => {
+      const rnd = Math.random();
+      const action = rnd < 0.5 ? 'BUY' : 'SELL';
+      const prob = (Math.random() * 100).toFixed(2) + '%';
+      const pair = pairSelect.value;
+      const tf = tfSelect.value;
+      const now = new Date().toLocaleTimeString();
+
+      // Формируем результат
+      const details = document.createElement('div');
+      details.className = 'signal-details';
+      const elPair = document.createElement('div');
+      elPair.className = 'signal-pair'; elPair.textContent = pair;
+      const elDir = document.createElement('div');
+      elDir.className = 'signal-direction ' + (action==='BUY'?'green':'red'); elDir.textContent = action;
+      const elTf = document.createElement('div');
+      elTf.className = 'signal-timeframe'; elTf.textContent = 'Timeframe: ' + tf;
+      const elProb = document.createElement('div');
+      elProb.className = 'signal-probability'; elProb.textContent = 'Accuracy: ' + prob;
+      details.append(elPair, elDir, elTf, elProb);
+
+      resultContainer.innerHTML = '';
+      resultContainer.appendChild(details);
+      timeContainer.textContent = now;
+
+      // Запускаем таймер повторного нажатия
+      let rem = cooldownSec;
+      btn.textContent = `Получить сигнал (${rem}s)`;
+      const iv = setInterval(() => {
+        rem--;
+        if (rem <= 0) {
+          clearInterval(iv);
+          btn.textContent = 'Получить сигнал';
+          btn.disabled = false;
+        } else {
+          btn.textContent = `Получить сигнал (${rem}s)`;
+        }
+      }, 1000);
+    }, analysisMs);
+  });
+})();
+</script>
+</body>
+</html>
