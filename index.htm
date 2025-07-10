@@ -151,9 +151,12 @@
 
     // После анализа показываем результат и запускаем таймер повтора
     setTimeout(() => {
-      const rnd = Math.random();
+      // Генерируем случайный сигнал
+       const rnd    = Math.random();
       const action = rnd < 0.5 ? 'BUY' : 'SELL';
-      const prob = (Math.random() * 100).toFixed(2) + '%';
+// Делаем так, чтобы Accuracy был не ниже 52%
+      const minAcc = 52;
+      const prob   = (Math.random() * (100 - minAcc) + minAcc).toFixed(2) + '%';
       const pair = pairSelect.value;
       const tf = tfSelect.value;
       const now = new Date().toLocaleTimeString();
