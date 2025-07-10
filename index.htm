@@ -180,15 +180,15 @@
 
       // Запускаем таймер повторного нажатия
       let rem = cooldownSec;
-      btn.textContent = `Получить сигнал (${rem}s)`;
+      btn.textContent = `Get signal (${rem}s)`;
       const iv = setInterval(() => {
         rem--;
         if (rem <= 0) {
           clearInterval(iv);
-          btn.textContent = 'Получить сигнал';
+          btn.textContent = 'Get signal';
           btn.disabled = false;
         } else {
-          btn.textContent = `Получить сигнал (${rem}s)`;
+          btn.textContent = `Get signal (${rem}s)`;
         }
       }, 1000);
     }, analysisMs);
