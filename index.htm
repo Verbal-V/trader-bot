@@ -154,203 +154,208 @@
       </section>
     </main>
   </div>
-   <script>
-    function toggleLangDropdown() { /* … */ }
-    function changeLanguage() { /* … */ }
+  <script>
+  function toggleLangDropdown() { /* … */ }
+  function changeLanguage() { /* … */ }
 
-    function smoothScrollTo(targetY, duration = 1000) {
-      const startY = window.scrollY;
-      const diff   = targetY - startY;
-      let startTime;
-      function ease(t) {
-        return t < 0.5
-          ? 2 * t * t
-          : -1 + (4 - 2 * t) * t;
+  function smoothScrollTo(targetY, duration = 1000) {
+    const startY = window.scrollY;
+    const diff   = targetY - startY;
+    let startTime;
+    function ease(t) {
+      return t < 0.5
+        ? 2 * t * t
+        : -1 + (4 - 2 * t) * t;
+    }
+    function step(ts) {
+      if (!startTime) startTime = ts;
+      const elapsed = ts - startTime;
+      const t       = Math.min(elapsed / duration, 1);
+      window.scrollTo(0, startY + diff * ease(t));
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  (function(){
+    const btn         = document.getElementById('generate-btn');
+    const resultEl    = document.getElementById('signal-result');
+    const timeEl      = document.getElementById('signal-time');
+    const chartDiv    = document.getElementById('chart-container');
+    const chartHeader = document.querySelector('.chart-header');
+    const pairSelect  = document.getElementById('currency-pair');
+
+    let liveChart, candleSeries, lastBar, updateInterval;
+
+    // Генерирует данные OHLC с учётом локального времени пользователя
+    function generateOHLC(count) {
+      const data = [];
+      // Динамическое начальное значение вместо жёсткой 74.7:
+      let prev = parseFloat((Math.random() * 0.5 + 74).toFixed(4));
+      const nowSec = Math.floor(Date.now() / 1000);
+      const start = nowSec - (count - 1) * 60;
+      for (let i = 0; i < count; i++) {
+        const time = start + i * 60;
+        const o = prev;
+        const h = o + Math.random() * 0.02;
+        const l = o - Math.random() * 0.02;
+        const c = l + Math.random() * (h - l);
+        data.push({
+          time,
+          open:  +o.toFixed(4),
+          high:  +h.toFixed(4),
+          low:   +l.toFixed(4),
+          close: +c.toFixed(4),
+        });
+        prev = c;
       }
-      function step(ts) {
-        if (!startTime) startTime = ts;
-        const elapsed = ts - startTime;
-        const t       = Math.min(elapsed / duration, 1);
-        window.scrollTo(0, startY + diff * ease(t));
-        if (t < 1) requestAnimationFrame(step);
-      }
-      requestAnimationFrame(step);
+      return data;
     }
 
-    (function(){
-      const btn         = document.getElementById('generate-btn');
-      const resultEl    = document.getElementById('signal-result');
-      const timeEl      = document.getElementById('signal-time');
-      const chartDiv    = document.getElementById('chart-container');
-      const chartHeader = document.querySelector('.chart-header');
-      const pairSelect  = document.getElementById('currency-pair');
+    function flagsHTML(pair){
+      const [L,R] = pair.split('/');
+      const lc = L.slice(0,2).toLowerCase();
+      const rc = R.slice(0,2).toLowerCase();
+      return `
+        <span class="flags">
+          <img src="https://flagcdn.com/w20/${lc}.png" alt="${L}" class="flag-icon">
+          <img src="https://flagcdn.com/w20/${rc}.png" alt="${R}" class="flag-icon">
+        </span>`;
+    }
 
-      let liveChart, candleSeries, lastBar, updateInterval;
+    function updateTime(){
+      const now = new Date();
+      timeEl.textContent = now.toLocaleTimeString();
+    }
+    updateTime();
+    setInterval(updateTime, 1000);
 
-      // Генерирует данные OHLC с учётом локального времени пользователя
-      function generateOHLC(count) {
-        const data = [];
-        let prev = 74.7;
-        const nowSec = Math.floor(Date.now() / 1000);
-        const start = nowSec - (count - 1) * 60;
-        for (let i = 0; i < count; i++) {
-          const time = start + i * 60; // по одной минуте
-          const o = prev;
-          const h = o + Math.random() * 0.02;
-          const l = o - Math.random() * 0.02;
-          const c = l + Math.random() * (h - l);
-          data.push({
-            time,
-            open:  +o.toFixed(4),
-            high:  +h.toFixed(4),
-            low:   +l.toFixed(4),
-            close: +c.toFixed(4),
-          });
-          prev = c;
-        }
-        return data;
+    btn.addEventListener('click', function(){
+      const animationDuration = 4000;
+      btn.disabled = true;
+      timeEl.textContent = '';
+
+      resultEl.innerHTML = `
+        <div class="signal-analyzing">
+          Analyzing<span class="dots">...</span>
+          <div class="progress-bar"><div class="progress-fill"></div></div>
+        </div>`;
+      const fill = resultEl.querySelector('.progress-fill');
+      fill.style.transition = 'width ' + animationDuration + 'ms linear';
+      setTimeout(() => fill.style.width = '100%', 50);
+
+      chartHeader.style.display = 'flex';
+      chartDiv.style.display    = 'block';
+
+      setTimeout(() => {
+        smoothScrollTo(document.documentElement.scrollHeight, 1000);
+      }, 500);
+
+      if (!liveChart) {
+        liveChart = LightweightCharts.createChart(
+          document.getElementById('live-chart'),
+          {
+            layout:   { backgroundColor: 'transparent', textColor: '#fff' },
+            grid:     {
+              vertLines: { color: 'rgba(255,255,255,0.1)' },
+              horzLines: { color: 'rgba(255,255,255,0.1)' },
+            },
+            // Скрываем шкалу цен
+            rightPriceScale: {
+              borderColor: 'rgba(255,255,255,0.2)',
+              visible: false
+            },
+            timeScale: {
+              borderColor:    'rgba(255,255,255,0.2)',
+              timeVisible:    true,
+              secondsVisible: false,
+              tickMarkFormatter: (t, type, locale) => {
+                const d = new Date(t * 1000);
+                return d.toLocaleTimeString(locale, { hour:'2-digit', minute:'2-digit' });
+              },
+            },
+          }
+        );
+        candleSeries = liveChart.addCandlestickSeries({
+          upColor:        '#23d18b',
+          downColor:      '#e74c3c',
+          borderUpColor:  '#23d18b',
+          borderDownColor:'#e74c3c',
+          wickUpColor:    '#23d18b',
+          wickDownColor:  '#e74c3c',
+        });
       }
 
-      function flagsHTML(pair){
-        const [L,R] = pair.split('/');
-        const lc = L.slice(0,2).toLowerCase();
-        const rc = R.slice(0,2).toLowerCase();
-        return `
-          <span class="flags">
-            <img src="https://flagcdn.com/w20/${lc}.png" alt="${L}" class="flag-icon">
-            <img src="https://flagcdn.com/w20/${rc}.png" alt="${R}" class="flag-icon">
-          </span>`;
-      }
+      const ohlc = generateOHLC(50);
+      candleSeries.setData(ohlc);
+      lastBar = ohlc[ohlc.length - 1];
 
-      function updateTime(){
-        const now = new Date();
-        timeEl.textContent = now.toLocaleTimeString();
-      }
-      updateTime();
-      setInterval(updateTime, 1000);
+      // Увеличиваем ширину свечей
+      const barSpacing = 18;
+      const chartWidth = chartDiv.clientWidth;
+      liveChart.timeScale().applyOptions({
+        rightOffset:   Math.floor((chartWidth / barSpacing) / 5),
+        barSpacing:    barSpacing,
+        minBarSpacing: 2,
+      });
 
-      btn.addEventListener('click', function(){
-        const animationDuration = 4000;
-        btn.disabled = true;
-        timeEl.textContent = '';
+      if (updateInterval) clearInterval(updateInterval);
+      updateInterval = setInterval(() => {
+        const noise    = (Math.random() - 0.5) * 0.002;
+        const newPrice = +(lastBar.close + noise).toFixed(4);
+        lastBar.close = newPrice;
+        lastBar.high  = Math.max(lastBar.high, newPrice);
+        lastBar.low   = Math.min(lastBar.low, newPrice);
+        candleSeries.update(lastBar);
+        liveChart.timeScale().scrollToRealTime();
+      }, 100);
+
+      setTimeout(() => {
+        clearInterval(updateInterval);
+        chartDiv.style.display    = 'none';
+        chartHeader.style.display = 'none';
+
+        const action = Math.random() < 0.5 ? 'BUY' : 'SELL';
+        const prob   = (Math.random() * 48 + 52).toFixed(2) + '%';
+        const nowStr = new Date().toLocaleTimeString();
+        const pair   = pairSelect.value;
+        const tf     = document.getElementById('timeframe').value;
 
         resultEl.innerHTML = `
-          <div class="signal-analyzing">
-            Analyzing<span class="dots">...</span>
-            <div class="progress-bar"><div class="progress-fill"></div></div>
+          <div class="signal-details">
+            <div class="signal-pair">
+              ${flagsHTML(pair)}
+              <span class="pair-text">${pair}</span>
+            </div>
+            <div class="signal-direction ${action==='BUY'?'green':'red'}">
+              ${action}
+            </div>
+            <div class="signal-timeframe">Timeframe: ${tf}</div>
+            <div class="signal-probability">Accuracy: ${prob}</div>
           </div>`;
-        const fill = resultEl.querySelector('.progress-fill');
-        fill.style.transition = 'width ' + animationDuration + 'ms linear';
-        setTimeout(() => fill.style.width = '100%', 50);
+        timeEl.textContent = nowStr;
 
-        chartHeader.style.display = 'flex';
-        chartDiv.style.display    = 'block';
+        const secs = /minute/.test(tf)
+          ? parseInt(tf,10) * 60
+          : parseInt(tf,10);
+        let rem = secs || 5;
+        btn.textContent = `Get signal (${rem}s)`;
+        const countdown = setInterval(() => {
+          rem--;
+          if (rem <= 0) {
+            clearInterval(countdown);
+            btn.textContent = 'Get signal';
+            btn.disabled    = false;
+          } else {
+            btn.textContent = `Get signal (${rem}s)`;
+          }
+        }, 1000);
 
-        setTimeout(() => {
-          smoothScrollTo(document.documentElement.scrollHeight, 1000);
-        }, 500);
+      }, animationDuration);
+    });
+  })();
+</script>
 
-        if (!liveChart) {
-          liveChart = LightweightCharts.createChart(
-            document.getElementById('live-chart'),
-            {
-              layout:   { backgroundColor: 'transparent', textColor: '#fff' },
-              grid:     {
-                vertLines: { color: 'rgba(255,255,255,0.1)' },
-                horzLines: { color: 'rgba(255,255,255,0.1)' },
-              },
-              rightPriceScale: { borderColor: 'rgba(255,255,255,0.2)' },
-              timeScale: {
-                borderColor:    'rgba(255,255,255,0.2)',
-                timeVisible:    true,
-                secondsVisible: false,
-                // формируем подписи в локальном часовом поясе пользователя
-                tickMarkFormatter: (t, type, locale) => {
-                  const d = new Date(t * 1000);
-                  return d.toLocaleTimeString(locale, { hour:'2-digit', minute:'2-digit' });
-                },
-              },
-            }
-          );
-          candleSeries = liveChart.addCandlestickSeries({
-            upColor:        '#23d18b',
-            downColor:      '#e74c3c',
-            borderUpColor:  '#23d18b',
-            borderDownColor:'#e74c3c',
-            wickUpColor:    '#23d18b',
-            wickDownColor:  '#e74c3c',
-          });
-        }
-
-        const ohlc = generateOHLC(50);
-        candleSeries.setData(ohlc);
-        lastBar = ohlc[ohlc.length - 1];
-
-        // Увеличиваем ширину свечей
-        const barSpacing = 18;
-        const chartWidth = chartDiv.clientWidth;
-        liveChart.timeScale().applyOptions({
-          rightOffset:   Math.floor((chartWidth / barSpacing) / 2),
-          barSpacing:    barSpacing,
-          minBarSpacing: 2,
-        });
-
-        if (updateInterval) clearInterval(updateInterval);
-        updateInterval = setInterval(() => {
-          const noise    = (Math.random() - 0.5) * 0.002;
-          const newPrice = +(lastBar.close + noise).toFixed(4);
-          lastBar.close = newPrice;
-          lastBar.high  = Math.max(lastBar.high, newPrice);
-          lastBar.low   = Math.min(lastBar.low, newPrice);
-          candleSeries.update(lastBar);
-          liveChart.timeScale().scrollToRealTime();
-        }, 100);
-
-        setTimeout(() => {
-          clearInterval(updateInterval);
-          chartDiv.style.display    = 'none';
-          chartHeader.style.display = 'none';
-
-          const action = Math.random() < 0.5 ? 'BUY' : 'SELL';
-          const prob   = (Math.random() * 48 + 52).toFixed(2) + '%';
-          const nowStr = new Date().toLocaleTimeString();
-          const pair   = pairSelect.value;
-          const tf     = document.getElementById('timeframe').value;
-
-          resultEl.innerHTML = `
-            <div class="signal-details">
-              <div class="signal-pair">
-                ${flagsHTML(pair)}
-                <span class="pair-text">${pair}</span>
-              </div>
-              <div class="signal-direction ${action==='BUY'?'green':'red'}">
-                ${action}
-              </div>
-              <div class="signal-timeframe">Timeframe: ${tf}</div>
-              <div class="signal-probability">Accuracy: ${prob}</div>
-            </div>`;
-          timeEl.textContent = nowStr;
-
-          const secs = /minute/.test(tf)
-            ? parseInt(tf,10) * 60
-            : parseInt(tf,10);
-          let rem = secs || 5;
-          btn.textContent = `Get signal (${rem}s)`;
-          const countdown = setInterval(() => {
-            rem--;
-            if (rem <= 0) {
-              clearInterval(countdown);
-              btn.textContent = 'Get signal';
-              btn.disabled    = false;
-            } else {
-              btn.textContent = `Get signal (${rem}s)`;
-            }
-          }, 1000);
-
-        }, animationDuration);
-      });
-    })();
-  </script>
 
 </body>
 </html>
