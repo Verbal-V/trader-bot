@@ -32,6 +32,36 @@
   height: auto;            /* авто-высота для пропорций */
 }
 
+/* Стили для range-слайдера */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: white;
+  border-radius: 3px;
+  /* создаём «заливку» красным по левому краю */
+  background-image: linear-gradient(#0d2cda, #0099ff);
+  background-repeat: no-repeat;
+  background-size: 0% 100%; /* будет обновляться скриптом */
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 2px solid red;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
 
   </style>
 
@@ -125,6 +155,19 @@
                         <option>15 minutes</option>
                     </select>
         </div>
+		<div class="input-group">
+  <label id="strategy-label">Strategy</label>
+  <select id="strategy">
+    <option value="conservative">Conservative</option>
+    <option value="balanced" selected>Balanced</option>
+    <option value="aggressive">Aggressive</option>
+  </select>
+</div>
+<div class="input-group">
+  <label for="risk-slider">Risk Level: <span id="risk-value">5</span></label>
+  <input type="range" id="risk-slider" min="1" max="10" value="5">
+</div>
+
         <div class="button-group">
           <button id="generate-btn" class="button button-green">Get signal</button>
         </div>
@@ -156,9 +199,11 @@
     </main>
   </div>
   <script>
+  // Языковой селектор (заглушки)
   function toggleLangDropdown() { /* … */ }
   function changeLanguage() { /* … */ }
 
+  // Плавная прокрутка
   function smoothScrollTo(targetY, duration = 1000) {
     const startY = window.scrollY;
     const diff   = targetY - startY;
@@ -179,19 +224,30 @@
   }
 
   (function(){
-    const btn         = document.getElementById('generate-btn');
-    const resultEl    = document.getElementById('signal-result');
-    const timeEl      = document.getElementById('signal-time');
-    const chartDiv    = document.getElementById('chart-container');
-    const chartHeader = document.querySelector('.chart-header');
-    const pairSelect  = document.getElementById('currency-pair');
+    // Элементы управления
+    const btn              = document.getElementById('generate-btn');
+    const resultEl         = document.getElementById('signal-result');
+    const timeEl           = document.getElementById('signal-time');
+    const chartDiv         = document.getElementById('chart-container');
+    const chartHeader      = document.querySelector('.chart-header');
+    const pairSelect       = document.getElementById('currency-pair');
+    const timeframeSelect  = document.getElementById('timeframe');
+
+    // Новые фейковые настройки
+    const strategySelect   = document.getElementById('strategy');
+    const riskSlider       = document.getElementById('risk-slider');
+    const riskValueLabel   = document.getElementById('risk-value');
+
+    // Обновляем подпись уровня риска при движении ползунка
+    riskSlider.addEventListener('input', () => {
+      riskValueLabel.textContent = riskSlider.value;
+    });
 
     let liveChart, candleSeries, lastBar, updateInterval;
 
-    // Генерирует данные OHLC с учётом локального времени пользователя
+    // Генерация начальных OHLC-данных
     function generateOHLC(count) {
       const data = [];
-      // Динамическое начальное значение вместо жёсткой 74.7:
       let prev = parseFloat((Math.random() * 0.5 + 74).toFixed(4));
       const nowSec = Math.floor(Date.now() / 1000);
       const start = nowSec - (count - 1) * 60;
@@ -213,6 +269,7 @@
       return data;
     }
 
+    // Флаги валютной пары
     function flagsHTML(pair){
       const [L,R] = pair.split('/');
       const lc = L.slice(0,2).toLowerCase();
@@ -224,6 +281,7 @@
         </span>`;
     }
 
+    // Обновление часов в заголовке
     function updateTime(){
       const now = new Date();
       timeEl.textContent = now.toLocaleTimeString();
@@ -231,11 +289,13 @@
     updateTime();
     setInterval(updateTime, 1000);
 
+    // Обработчик клика по кнопке
     btn.addEventListener('click', function(){
       const animationDuration = 4000;
       btn.disabled = true;
       timeEl.textContent = '';
 
+      // Показ прогресса «анализ»
       resultEl.innerHTML = `
         <div class="signal-analyzing">
           Analyzing<span class="dots">...</span>
@@ -248,27 +308,25 @@
       chartHeader.style.display = 'flex';
       chartDiv.style.display    = 'block';
 
+      // Автоскролл вниз
       setTimeout(() => {
         smoothScrollTo(document.documentElement.scrollHeight, 1000);
       }, 500);
 
+      // Инициализация графика
       if (!liveChart) {
         liveChart = LightweightCharts.createChart(
           document.getElementById('live-chart'),
           {
-            layout:   { backgroundColor: 'transparent', textColor: '#fff' },
-            grid:     {
+            layout: { backgroundColor: 'transparent', textColor: '#fff' },
+            grid: {
               vertLines: { color: 'rgba(255,255,255,0.1)' },
               horzLines: { color: 'rgba(255,255,255,0.1)' },
             },
-            // Скрываем шкалу цен
-            rightPriceScale: {
-              borderColor: 'rgba(255,255,255,0.2)',
-              visible: false
-            },
+            rightPriceScale: { visible: false },
             timeScale: {
-              borderColor:    'rgba(255,255,255,0.2)',
-              timeVisible:    true,
+              borderColor: 'rgba(255,255,255,0.2)',
+              timeVisible: true,
               secondsVisible: false,
               tickMarkFormatter: (t, type, locale) => {
                 const d = new Date(t * 1000);
@@ -278,28 +336,30 @@
           }
         );
         candleSeries = liveChart.addCandlestickSeries({
-          upColor:        '#23d18b',
-          downColor:      '#e74c3c',
-          borderUpColor:  '#23d18b',
-          borderDownColor:'#e74c3c',
-          wickUpColor:    '#23d18b',
-          wickDownColor:  '#e74c3c',
+          upColor: '#23d18b',
+          downColor: '#e74c3c',
+          borderUpColor: '#23d18b',
+          borderDownColor: '#e74c3c',
+          wickUpColor: '#23d18b',
+          wickDownColor: '#e74c3c',
         });
       }
 
+      // Первичные данные
       const ohlc = generateOHLC(50);
       candleSeries.setData(ohlc);
       lastBar = ohlc[ohlc.length - 1];
 
-      // Увеличиваем ширину свечей
+      // Настройка ширины баров
       const barSpacing = 18;
       const chartWidth = chartDiv.clientWidth;
       liveChart.timeScale().applyOptions({
         rightOffset:   Math.floor((chartWidth / barSpacing) / 5),
-        barSpacing:    barSpacing,
+        barSpacing,
         minBarSpacing: 2,
       });
 
+      // Обновление последней свечи
       if (updateInterval) clearInterval(updateInterval);
       updateInterval = setInterval(() => {
         const noise    = (Math.random() - 0.5) * 0.002;
@@ -311,16 +371,31 @@
         liveChart.timeScale().scrollToRealTime();
       }, 100);
 
+      // По окончании анимации выводим сигнал
       setTimeout(() => {
         clearInterval(updateInterval);
         chartDiv.style.display    = 'none';
         chartHeader.style.display = 'none';
 
+        // Подготовка параметров «контроля»
+        const strategy = strategySelect.value;     // conservative, balanced, aggressive
+        const risk     = +riskSlider.value;        // 1–10
+
+        // Базовая вероятность по стратегии
+        let baseProb;
+        switch(strategy) {
+          case 'conservative': baseProb = 70; break;
+          case 'aggressive':   baseProb = 55; break;
+          default:             baseProb = 62; // balanced
+        }
+        // Варьируем её в зависимости от риска
+        const variation = (Math.random() - 0.5) * (10 - risk) * 0.4;
+        const prob = Math.min(99, Math.max(51, baseProb + variation)).toFixed(2) + '%';
+
         const action = Math.random() < 0.5 ? 'BUY' : 'SELL';
-        const prob   = (Math.random() * 48 + 52).toFixed(2) + '%';
         const nowStr = new Date().toLocaleTimeString();
         const pair   = pairSelect.value;
-        const tf     = document.getElementById('timeframe').value;
+        const tf     = timeframeSelect.value;
 
         resultEl.innerHTML = `
           <div class="signal-details">
@@ -336,6 +411,7 @@
           </div>`;
         timeEl.textContent = nowStr;
 
+        // Обратный отсчёт блокировки кнопки
         const secs = /minute/.test(tf)
           ? parseInt(tf,10) * 60
           : parseInt(tf,10);
@@ -355,7 +431,28 @@
       }, animationDuration);
     });
   })();
+  // после того, как страница прогрузилась
+const riskSlider = document.getElementById('risk-slider');
+
+function updateSliderFill(val) {
+  const min = +riskSlider.min;
+  const max = +riskSlider.max;
+  const pct = (val - min) / (max - min) * 100;
+  riskSlider.style.backgroundSize = pct + '% 100%';
+}
+
+// при движении ползунка
+riskSlider.addEventListener('input', e => {
+  updateSliderFill(e.target.value);
+  // и обновляем цифру рядом, если нужно
+  document.getElementById('risk-value').textContent = e.target.value;
+});
+
+// инициализируем заливку при загрузке
+updateSliderFill(riskSlider.value);
+
 </script>
+
 
 
 </body>
